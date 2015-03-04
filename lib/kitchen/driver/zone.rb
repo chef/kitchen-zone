@@ -91,7 +91,7 @@ module Kitchen
       def destroy(state)
         return if state[:zone_id].nil?
 
-        gz = SolarisZone.new
+        gz = SolarisZone.new(logger)
         gz.hostname = config[:global_zone_hostname]
         gz.username = config[:global_zone_username]
         gz.password = config[:global_zone_password]
@@ -101,7 +101,7 @@ module Kitchen
         end
 
         # Yay! now let's create our new test zone
-        tz = SolarisZone.new
+        tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen"
         tz.password = "tulips"
@@ -119,6 +119,10 @@ module Kitchen
       attr_accessor :global_zone
       attr_accessor :name
       attr_accessor :ip
+
+      def initialize(logger)
+        @logger = logger
+      end
 
 #      logger = ::Logger.new(STDOUT)
 
@@ -223,7 +227,7 @@ module Kitchen
       end
 
       def zone_connection
-        opts = Hash.new
+        opts = { :logger => @logger }
         if global?
           hostname = @hostname
           username = @username
