@@ -25,7 +25,7 @@ module Kitchen
 
     # Zone driver for Kitchen.
     #
-    # @author Scott Hain <shain@getchef.com>
+    # @author Scott Hain <shain@chef.io>
     class Zone < Kitchen::Driver::SSHBase
       default_config :global_zone_hostname, nil
       default_config :global_zone_username, 'root'
@@ -37,7 +37,7 @@ module Kitchen
       # zone to clone. This can cause the first run to be slower.
       def create(state)
         # Set up global zone information
-        gz = SolarisZone.new
+        gz = SolarisZone.new(logger)
         gz.hostname = config[:global_zone_hostname]
         gz.username = config[:global_zone_username]
         gz.password = config[:global_zone_password]
@@ -47,18 +47,18 @@ module Kitchen
         end
 
         # Now that we know our global zone is happy, let's create a master zone!
-        mz = SolarisZone.new
+        mz = SolarisZone.new(logger)
         mz.global_zone = gz
         mz.name = config[:master_zone_name]
         mz.password = "llama"
         mz.ip = config[:master_zone_ip]
 
         unless mz.exists?
-          logger.debug("[kitchen-zone] #{self} Zone template #{mz.name} not found - creating now.")
+          logger.debug("[kitchen-zone] Zone template #{mz.name} not found - creating now.")
           mz.create
           mz.halt
         else
-          logger.debug("[kitchen-zone] #{self} Found zone template #{mz.name}")
+          logger.debug("[kitchen-zone] Found zone template #{mz.name}")
         end
 
         if mz.running?
@@ -66,7 +66,7 @@ module Kitchen
         end
 
         # Yay! now let's create our new test zone
-        tz = SolarisZone.new
+        tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen"
         tz.password = "tulips"
@@ -75,33 +75,28 @@ module Kitchen
         tz.clone_from(mz)
 
         state[:zone_id] = tz.name
+        state[:hostname] = tz.ip
+        state[:username] = "root"
+        state[:password] = tz.password
         tz.sever
         mz.sever
         gz.sever
       end
 
-      def converge(state)
-        puts "CONVERGE"
-      end
-
-      def test(state)
-        puts "TEST"
-      end
-
       def destroy(state)
         return if state[:zone_id].nil?
 
-        gz = SolarisZone.new
+        gz = SolarisZone.new(logger)
         gz.hostname = config[:global_zone_hostname]
         gz.username = config[:global_zone_username]
         gz.password = config[:global_zone_password]
 
         if gz.verify_connection != 0
-          raise Exception, "Could not verify your global zone - verify host, username, and password"
+          raise Exception, "Could not verify your global zone - verify hostname, username, and password"
         end
 
-        # Yay! now let's create our new test zone
-        tz = SolarisZone.new
+        # Destroy the zone
+        tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen"
         tz.password = "tulips"
@@ -120,7 +115,9 @@ module Kitchen
       attr_accessor :name
       attr_accessor :ip
 
-#      logger = ::Logger.new(STDOUT)
+      def initialize(logger = nil)
+        @logger = logger || ::Logger.new(STDOUT)
+      end
 
       def clone_from(master_zone)
         raise Exception, "Can not clone global zones" if global?
@@ -154,13 +151,13 @@ module Kitchen
 
         generate_hostname
         return_value = zone_connection.exec("zoneadm -z #{name} halt")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zoneadm -z #{name} uninstall -F")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zonecfg -z #{name} delete -F")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's/#{ip} #{hostname}\\\n//' \"/etc/hosts\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def exists?
@@ -178,9 +175,9 @@ module Kitchen
 
       def halt
         raise Exception, "Can not halt global zones" if global?
-#        logger.debug("Halting zone #{@name}")
+        logger.debug("[SolarisZone] Halting zone #{@name}")
         return_value = zone_connection.exec("zoneadm -z #{@name} halt")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def network_device
@@ -215,7 +212,7 @@ module Kitchen
           return_value = zone_connection.exec("")
           return_value[:exit_code]
         rescue SocketError
-#          @logger.error "Error connecting to #{@hostname}"
+          logger.error "[SolarisZone] Error connecting to #{@hostname}"
           return 1
         ensure
           sever
@@ -224,6 +221,7 @@ module Kitchen
 
       def zone_connection
         opts = Hash.new
+        opts[:logger] = logger
         if global?
           hostname = @hostname
           username = @username
@@ -238,13 +236,15 @@ module Kitchen
 
       private
 
+      attr_reader :logger
+
       def boot_zone
-#        @logger.debug("Booting zone #{@name}")
+        logger.debug("[SolarisZone] Booting zone #{@name}")
         return_value = zone_connection.exec("zoneadm -z \"#{@name}\" boot")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         waiting_for_ssh = true
         waiting_for_too_damn_long = 0
-#        @logger.debug("Waiting for SSH service to come up on #{@name}")
+        logger.debug("[SolarisZone] Waiting for SSH service to come up on #{@name}")
         while waiting_for_ssh && waiting_for_too_damn_long < 10
           return_value = zone_connection.exec("zlogin #{@name} \"svcs -v | grep ssh | grep online 2>&1 > /dev/null\"")
           if return_value[:exit_code] == 0
@@ -257,45 +257,45 @@ module Kitchen
       end
 
       def clone_zone(master_zone_name)
-#        @logger.debug("Cloning #{@name} from #{master_zone_name}")
+        logger.debug("[SolarisZone] Cloning #{@name} from #{master_zone_name}")
         return_value = zone_connection.exec("zoneadm -z #{@name} clone #{master_zone_name} 2>&1 | grep -v \"grep: can't open /a/etc/dumpadm.conf\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def create_sysidcfg
         return_value = zone_connection.exec("echo \"#{sysidcfg}\" > /zones/#{@name}/root/etc/sysidcfg")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def create_zone
-#        @logger.debug("Creating zone #{@name}")
+        logger.debug("[SolarisZone] Creating zone #{@name}")
         return_value = zone_connection.exec("zonecfg -z #{@name} -f /tmp/#{@name}.cfg")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def create_zonecfg
         return_value = zone_connection.exec("echo \"#{zone_cfg}\" > /tmp/#{@name}.cfg")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def configure_network
         return_value = zone_connection.exec("echo \"#{resolve_conf}\" > /zones/#{@name}/root/etc/resolv.conf")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("cp /zones/#{@name}/root/etc/nsswitch.dns  /zones/#{@name}/root/etc/nsswitch.conf")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's/^#(.*enable-cache hosts.*)/\\1/'  \"/zones/#{@name}/root/etc/nscd.conf\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("echo #{@ip} #{@hostname} >> /etc/hosts")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def configure_ssh
         return_value = zone_connection.exec("perl -pi -e 's/(PermitRootLogin) no/\\1 yes/' \"/zones/#{@name}/root/etc/ssh/sshd_config\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's%(CONSOLE=/dev/console)%\\#\\1%' \"/zones/#{@name}/root/etc/default/login\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def generate_hostname
@@ -311,9 +311,9 @@ module Kitchen
       end
 
       def install_zone
-#        logger.debug("Installing zone #{@name}")
+        logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
         return_value = zone_connection.exec("zoneadm -z #{@name} install")
-        raise Exception if return_value[:exit_code] != 0
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
       def password_hash
@@ -349,18 +349,6 @@ set zonepath=/zones/#{@name}
 set autoboot=true
 set ip-type=shared
 set bootargs=\\\"-m verbose\\\"
-add inherit-pkg-dir
-set dir=/lib
-end
-add inherit-pkg-dir
-set dir=/platform
-end
-add inherit-pkg-dir
-set dir=/sbin
-end
-add inherit-pkg-dir
-set dir=/usr
-end
 add net
 set address=#{@ip}
 set physical=#{@global_zone.network_device}
