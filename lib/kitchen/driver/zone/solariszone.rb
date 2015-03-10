@@ -17,8 +17,7 @@
 # limitations under the License.
 
 require 'shellwords'
-require 'digest/sha2'
-require 'securerandom'
+require 'unix_crypt'
 
 module Kitchen
 
@@ -239,6 +238,10 @@ module Kitchen
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        if global_zone.solaris_version == '11'
+          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"")
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        end
       end
 
       def generate_hostname
@@ -267,21 +270,12 @@ module Kitchen
       end
 
       def password_hash
+        salt = rand(36**6).to_s(36)
         case global_zone.solaris_version
         when '10'
-          salt = rand(36**6).to_s(36)
           password.crypt(salt)
         when '11'
-          # have to generate on the target to get a good hash :(
-          return_value = zone_connection.exec("
-          echo -e \"\\
-import crypt,os,binascii
-if __name__ == \\\"__main__\\\":
-  cleartext='#{password}'
-  salt='\\\$5\\\$' + '#{SecureRandom.base64(8)}' + '\\\$'
-  print crypt.crypt(cleartext, salt)\" | python")
-          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-          return_value[:stdout]
+          ::UnixCrypt::SHA256.build(password, salt)
         end
       end
 

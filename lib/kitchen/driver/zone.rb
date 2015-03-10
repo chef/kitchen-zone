@@ -53,7 +53,7 @@ module Kitchen
         mz = SolarisZone.new(logger)
         mz.global_zone = gz
         mz.name = config[:master_zone_name]
-        mz.password = "llama"
+        mz.password = "llama!llama"
         mz.ip = config[:master_zone_ip]
 
         unless mz.exists?
@@ -72,7 +72,7 @@ module Kitchen
         tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen"
-        tz.password = "tulips"
+        tz.password = "tulips!tulips"
         tz.ip = config[:test_zone_ip]
 
         case gz.solaris_version
@@ -107,7 +107,7 @@ module Kitchen
         tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen"
-        tz.password = "tulips"
+        tz.password = "tulips!tulips"
         tz.ip = config[:test_zone_ip]
 
         tz.destroy
