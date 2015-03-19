@@ -17,6 +17,7 @@
 # limitations under the License.
 
 require 'kitchen'
+require 'securerandom'
 require_relative 'zone/solariszone'
 
 module Kitchen
@@ -71,7 +72,7 @@ module Kitchen
         # Yay! now let's create our new test zone
         tz = SolarisZone.new(logger)
         tz.global_zone = gz
-        tz.name = "kitchen"
+        tz.name = "kitchen-#{SecureRandom.hex(6)}"
         tz.password = "tulips!tulips"
         tz.ip = config[:test_zone_ip]
 
@@ -106,8 +107,8 @@ module Kitchen
         # Destroy the zone
         tz = SolarisZone.new(logger)
         tz.global_zone = gz
-        tz.name = "kitchen"
-        tz.password = "tulips!tulips"
+        tz.name = state[:zone_id]
+        tz.password = state[:password]
         tz.ip = config[:test_zone_ip]
 
         tz.destroy

@@ -65,7 +65,7 @@ module Kitchen
 
       def destroy
         raise Exception, "Can not destroy global zones" if global?
-        raise Exception, "Zone #{@name} does not exist" if not exists?
+        return if not exists?
 
         generate_hostname
         return_value = zone_connection.exec("zoneadm -z #{name} halt")
