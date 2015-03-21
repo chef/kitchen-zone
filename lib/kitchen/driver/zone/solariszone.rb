@@ -239,7 +239,7 @@ module Kitchen
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         if global_zone.solaris_version == '11'
-          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"")
+          return_value = zone_connection.exec("zlogin #{@name} \"usermod -K type=normal root\"")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
       end
