@@ -167,14 +167,14 @@ module Kitchen
         return_value = zone_connection.exec("zoneadm -z #{@name} boot")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         waiting_for_ssh = true
-        waiting_for_too_damn_long = 0
+        waiting_too_damn_long = 0
         logger.debug("[SolarisZone] Waiting for SSH service to come up on #{@name}")
-        while waiting_for_ssh && waiting_for_too_damn_long < 10
+        while waiting_for_ssh && waiting_too_damn_long < 10
           return_value = zone_connection.exec("zlogin #{@name} \"svcs -v | grep ssh | grep online 2>&1 > /dev/null\"")
           if return_value[:exit_code] == 0
             waiting_for_ssh = false
           else
-            waiting_for_too_damn_long += 1
+            waiting_too_damn_long += 1
             sleep 10
           end
         end
@@ -239,7 +239,18 @@ module Kitchen
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         if global_zone.solaris_version == '11'
-          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"")
+          waiting_for_rolemod = true;
+          waiting_too_damn_long = 0;
+          while waiting_for_rolemod && waiting_too_damn_long < 10
+            return_value = zone_connection.exec("zlogin #{@name} \"usermod -K type=normal root\"")
+            return_value = zone_connection.exec("zlogin #{@name} \"cat /etc/user_attr.d/* | grep root | grep 'type=role'\" 2>&1 > /dev/null\"")
+            if return_value[:exit_code] == 1
+              waiting_for_rolemod = false
+            else
+              waiting_too_damn_long += 1
+              sleep 10
+            end
+          end
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
       end
