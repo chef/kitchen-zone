@@ -16,14 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-require 'shellwords'
-require 'unix_crypt'
+require "shellwords"
+require "unix_crypt"
 
 module Kitchen
 
   module Driver
 
-    class SolarisZone
+    class SolarisZone # rubocop:disable Metrics/ClassLength
       attr_accessor :hostname
       attr_accessor :username
       attr_accessor :password
@@ -55,9 +55,9 @@ module Kitchen
         generate_hostname
         create_zonecfg
         create_zone
-        create_sc_profile if global_zone.solaris_version == '11'
+        create_sc_profile if global_zone.solaris_version == "11"
         install_zone
-        create_sysidcfg if global_zone.solaris_version == '10'
+        create_sysidcfg if global_zone.solaris_version == "10"
         boot_zone
         configure_network
         configure_ssh
@@ -65,7 +65,7 @@ module Kitchen
 
       def destroy
         raise Exception, "Can not destroy global zones" if global?
-        return if not exists?
+        return if !exists?
 
         generate_hostname
         return_value = zone_connection.exec("zoneadm -z #{name} halt")
@@ -79,6 +79,7 @@ module Kitchen
       end
 
       def exists?
+        raise Exception, "Global zones always exist" if global?
         return_value = zone_connection.exec("zoneadm -z #{name} list")
         if return_value[:stdout].eql? name
           true
@@ -132,15 +133,13 @@ module Kitchen
       end
 
       def verify_connection
-        begin
-          return_value = zone_connection.exec("")
-          return_value[:exit_code]
-        rescue SocketError
-          logger.error "[SolarisZone] Error connecting to #{@hostname}"
-          return 1
-        ensure
-          sever
-        end
+        return_value = zone_connection.exec("")
+        return_value[:exit_code]
+      rescue SocketError
+        logger.error "[SolarisZone] Error connecting to #{@hostname}"
+        return 1
+      ensure
+        sever
       end
 
       def zone_connection
@@ -155,6 +154,7 @@ module Kitchen
           username = @global_zone.username
           opts[:password] = @global_zone.password
         end
+
         @zone_connection ||= SSHZone.new(hostname, username, opts)
       end
 
@@ -182,7 +182,7 @@ module Kitchen
 
       def clone_zone(master_zone_name)
         # if we're using solaris 11, we don't actually clone, we just run create
-        if global_zone.solaris_version == '11'
+        if global_zone.solaris_version == "11"
           raise Exception, "Please use create for Solaris 11 zones, we don't support cloning on Solaris 11"
         else
           logger.debug("[SolarisZone] Cloning #{@name} from #{master_zone_name}")
@@ -209,10 +209,10 @@ module Kitchen
 
       def create_zonecfg
         case global_zone.solaris_version
-        when '10'
+        when "10"
           return_value = zone_connection.exec("echo #{zone_cfg_10} > /tmp/#{@name}.cfg")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        when '11'
+        when "11"
           return_value = zone_connection.exec("echo #{zone_cfg_11} > /tmp/#{@name}.cfg")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         else
@@ -238,7 +238,7 @@ module Kitchen
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        if global_zone.solaris_version == '11'
+        if global_zone.solaris_version == "11"
           waiting_for_rolemod = true;
           waiting_too_damn_long = 0;
           while waiting_for_rolemod && waiting_too_damn_long < 10
@@ -259,7 +259,7 @@ module Kitchen
         if global?
           raise Exception, "Can not generate global zone hostname."
         else
-    @hostname = "#{global_hostname.split('.',2)[0]}-#{@name}-zone.#{global_hostname.split('.',2)[1]}"
+          @hostname = "#{global_hostname.split(".", 2)[0]}-#{@name}-zone.#{global_hostname.split(".", 2)[1]}"
         end
       end
 
@@ -269,11 +269,11 @@ module Kitchen
 
       def install_zone
         case global_zone.solaris_version
-        when '10'
+        when "10"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
           return_value = zone_connection.exec("zoneadm -z #{@name} install")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        when '11'
+        when "11"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
           return_value = zone_connection.exec("zoneadm -z #{@name} install -c /tmp/#{@name}_sc_profile.xml")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
@@ -283,9 +283,9 @@ module Kitchen
       def password_hash
         salt = rand(36**6).to_s(36)
         case global_zone.solaris_version
-        when '10'
+        when "10"
           password.crypt(salt)
-        when '11'
+        when "11"
           ::UnixCrypt::SHA256.build(password, salt)
         end
       end
@@ -394,7 +394,7 @@ end
 add attr
 set name=comment
 set type=string
-set value="Created by Test Kitchen + #{Time::now}"
+set value="Created by Test Kitchen + #{Time.now}"
 end|).chomp
       end
 
@@ -412,7 +412,7 @@ end
 add attr
 set name=comment
 set type=string
-set value="Created by Test Kitchen + #{Time::now}"
+set value="Created by Test Kitchen + #{Time.now}"
 end|).chomp
       end
     end
