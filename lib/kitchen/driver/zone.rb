@@ -16,9 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-require 'kitchen'
-require 'securerandom'
-require_relative 'zone/solariszone'
+require "kitchen"
+require "securerandom"
+require_relative "solariszone"
 
 module Kitchen
 
@@ -29,10 +29,12 @@ module Kitchen
     # @author Scott Hain <shain@chef.io>
     class Zone < Kitchen::Driver::SSHBase
       default_config :global_zone_hostname, nil
-      default_config :global_zone_username, 'root'
+      default_config :global_zone_username, "root"
       default_config :global_zone_password, nil
-      default_config :global_zone_port, '22'
-      default_config :master_zone_name, 'master'
+      default_config :global_zone_port, "22"
+      default_config :master_zone_name, "master"
+      default_config :master_zone_password, "llama!llama"
+      default_config :test_zone_password, "tulips!tulips"
 
       # The first time we run, we need to ensure that we have a 'master' template
       # zone to clone. This can cause the first run to be slower.
@@ -54,10 +56,10 @@ module Kitchen
         mz = SolarisZone.new(logger)
         mz.global_zone = gz
         mz.name = config[:master_zone_name]
-        mz.password = "llama!llama"
+        mz.password = config[:master_zone_password]
         mz.ip = config[:master_zone_ip]
 
-        unless mz.exists?
+        if !mz.exists?
           logger.debug("[kitchen-zone] Zone template #{mz.name} not found - creating now.")
           mz.create
           mz.halt
@@ -73,13 +75,13 @@ module Kitchen
         tz = SolarisZone.new(logger)
         tz.global_zone = gz
         tz.name = "kitchen-#{SecureRandom.hex(6)}"
-        tz.password = "tulips!tulips"
+        tz.password = config[:test_zone_password]
         tz.ip = config[:test_zone_ip]
 
         case gz.solaris_version
-        when '10'
+        when "10"
           tz.clone_from(mz)
-        when '11'
+        when "11"
           tz.create
         end
 
@@ -101,7 +103,8 @@ module Kitchen
         gz.password = config[:global_zone_password]
 
         if gz.verify_connection != 0
-          raise Exception, "Could not verify your global zone - verify hostname, username, and password"
+          raise Exception, "Could not verify your global zone \
+                            - verify hostname, username, and password"
         end
 
         # Destroy the zone
@@ -120,7 +123,7 @@ module Kitchen
 
       def exec(cmd)
         logger.debug("[SSHZone] #{self} (#{cmd})")
-        return_value = exec_with_return(cmd)
+        exec_with_return(cmd)
       end
 
       private
@@ -131,7 +134,6 @@ module Kitchen
       # @return [Hash] contains the exit code, stderr and stdout of the command
       # @api private
       def exec_with_return(cmd)
-        exit_code = nil
         return_value = Hash.new
         session.open_channel do |channel|
 

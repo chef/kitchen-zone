@@ -1,38 +1,90 @@
-# <a name="title"></a> Kitchen::Zone
+# Kitchen::Zone
 
 A Test Kitchen Driver for Zone.
 
-## <a name="requirements"></a> Requirements
+## Requirements
 
-**TODO:** document any software or library prerequisites that are required to
-use this driver. Implement the `#verify_dependencies` method in your Driver
-class to enforce these requirements in code, if possible.
+There are no software requirements for this driver. That being said, this driver is very opinionated about the hardware setup you are connecting to.
 
-## <a name="installation"></a> Installation and Setup
+## Installation and Setup
 
 Please read the [Driver usage][driver_usage] page for more details.
 
-## <a name="config"></a> Configuration
+## Hardware/OS Requirements
+It is assumed that you are running a physical Solaris 10/11 system that has the appropriate patch level (and all the required packages) to support zones.
 
-**TODO:** Write descriptions of all configuration options
+For **Solaris 10** It is assumed that the sudo package is installed.
 
-### <a name="config-require-chef-omnibus"></a> require\_chef\_omnibus
+## Configuration
 
-Determines whether or not a Chef [Omnibus package][chef_omnibus_dl] will be
-installed. There are several different behaviors available:
+There are a number of configuration options that are required in your `.kitchen.yml`.
 
-* `true` - the latest release will be installed. Subsequent converges
-  will skip re-installing if chef is present.
-* `latest` - the latest release will be installed. Subsequent converges
-  will always re-install even if chef is present.
-* `<VERSION_STRING>` (ex: `10.24.0`) - the desired version string will
-  be passed the the install.sh script. Subsequent converges will skip if
-  the installed version and the desired version match.
-* `false` or `nil` - no chef is installed.
+* `global_zone_hostname` - hostname/IP of the global zone physical machine.
+* `global_zone_username` - username of the global zone physical machine. (default `root`)
+* `global_zone_password` - password for the global zone physical machine.
+* `global_zone_port` - ssh port for global zone physical machine. (default `22`)
+* `master_zone_name` - name of the 'master' zone that other zones will be cloned off of (this is essentially a template). (default `master`)
+* `master_zone_ip` - ip address of the template zone. this is required during initial setup and must be valid.
+* `master_zone_password` - template zone password (default `llama!llama`)
+* `test_zone_ip` - ip address of the zone where tests will run.
+* `test_zone_password` - test zone password (default `tulips!tulips`)
 
-The default value is unset, or `nil`.
+In addition to these changes, you will need to override the `sudo_command` in both the `provisioner` and `verifier` sections of the `.kitchen.yml`.
 
-## <a name="development"></a> Development
+For **Solaris 10**:
+```
+provisioner:
+      sudo_command: '/usr/local/bin/sudo -E'
+verifier:
+      sudo_command: '/usr/local/bin/sudo -E'
+```
+For **Solaris 11**:
+```
+provisioner:
+      sudo_command: 'sudo -E'
+verifier:
+      sudo_command: 'sudo -E'
+```
+
+#### Full .kitchen.yml Example
+```
+driver:
+  name: zone
+
+provisioner:
+  name: chef_zero
+
+platforms:
+  - name: solaris-10-sun4v
+    provisioner:
+      sudo_command: '/usr/local/bin/sudo -E'
+    verifier:
+      sudo_command: '/usr/local/bin/sudo -E'
+    driver:
+      global_zone_hostname: 'sol-zone-host01.mysite.co'
+      global_zone_user: 'root'
+      global_zone_password: 'supersecret'
+      master_zone_name: kitchen-master
+      master_zone_ip: '192.168.1.100'
+      test_zone_ip: '192.168.1.110'
+  - name: solaris-11-i86pc
+    provisioner:
+      sudo_command: 'sudo -E'
+    verifier:
+      sudo_command: 'sudo -E'
+    driver:
+      global_zone_hostname: 'sol-zone-host02.mysite.co'
+      global_zone_user: 'root'
+      global_zone_password: 'supersecret'
+      master_zone_name: kitchen-master
+      master_zone_ip: '192.168.2.100'
+      test_zone_ip: '192.168.2.110'
+suites:
+< the usual >
+
+```
+
+## Development
 
 * Source hosted at [GitHub][repo]
 * Report issues/questions/feature requests on [GitHub Issues][issues]
@@ -47,18 +99,18 @@ example:
 4. Push to the branch (`git push origin my-new-feature`)
 5. Create new Pull Request
 
-## <a name="authors"></a> Authors
+## Authors
 
-Created and maintained by [Scott Hain][author] (<shain@getchef.com>)
+Created and maintained by [Scott Hain][author] (<shain@chef.io>)
 
-## <a name="license"></a> License
+## License
 
 Apache 2.0 (see [LICENSE][license])
 
 
-[author]:           https://github.com/enter-github-user
-[issues]:           https://github.com/enter-github-user/kitchen-zone/issues
-[license]:          https://github.com/enter-github-user/kitchen-zone/blob/master/LICENSE
-[repo]:             https://github.com/enter-github-user/kitchen-zone
+[author]:           https://github.com/scotthain
+[issues]:           https://github.com/test-kitchen/kitchen-zone/issues
+[license]:          https://github.com/test-kitchen/kitchen-zone/blob/master/LICENSE
+[repo]:             https://github.com/test-kitchen/kitchen-zone
 [driver_usage]:     http://docs.kitchen-ci.org/drivers/usage
 [chef_omnibus_dl]:  http://www.getchef.com/chef/install/
