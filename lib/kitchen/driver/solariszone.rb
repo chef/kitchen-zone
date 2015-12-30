@@ -243,7 +243,7 @@ module Kitchen
           waiting_too_damn_long = 0;
           while waiting_for_rolemod && waiting_too_damn_long < 10
             return_value = zone_connection.exec("zlogin #{@name} \"usermod -K type=normal root\"")
-            return_value = zone_connection.exec("zlogin #{@name} \"cat /etc/user_attr.d/* | grep root | grep 'type=role'\" 2>&1 > /dev/null\"")
+            return_value = zone_connection.exec("zlogin #{@name} \"cat /etc/user_attr.d/* | grep root | grep 'type=role'\" 2>&1 > /dev/null")
             if return_value[:exit_code] == 1
               waiting_for_rolemod = false
             else
