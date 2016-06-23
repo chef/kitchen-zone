@@ -18,6 +18,7 @@
 
 require "kitchen"
 require "securerandom"
+require 'net/ssh'
 require_relative "solariszone"
 
 module Kitchen
@@ -35,6 +36,24 @@ module Kitchen
       default_config :master_zone_name, "master"
       default_config :master_zone_password, "llama!llama"
       default_config :test_zone_password, "tulips!tulips"
+      default_config :private_key,   File.join(Dir.pwd, '.kitchen', 'zone_id_rsa')
+      default_config :public_key,    File.join(Dir.pwd, '.kitchen', 'zone_id_rsa.pub')
+
+      def generate_keys
+        if !File.exist?(config[:public_key]) || !File.exist?(config[:private_key])
+          private_key = OpenSSL::PKey::RSA.new(2048)
+          blobbed_key = Base64.encode64(private_key.to_blob).gsub("\n", '')
+          public_key = "ssh-rsa #{blobbed_key} kitchen_zone_key"
+          File.open(config[:private_key], 'w') do |file|
+            file.write(private_key)
+            file.chmod(0600)
+          end
+          File.open(config[:public_key], 'w') do |file|
+            file.write(public_key)
+            file.chmod(0600)
+          end
+        end
+      end
 
       # The first time we run, we need to ensure that we have a 'master' template
       # zone to clone. This can cause the first run to be slower.
@@ -52,24 +71,9 @@ module Kitchen
         # Let's see if we're Solaris 10 or 11
         gz.find_version
 
-        # Now that we know our global zone is happy, let's create a master zone!
-        mz = SolarisZone.new(logger)
-        mz.global_zone = gz
-        mz.name = config[:master_zone_name]
-        mz.password = config[:master_zone_password]
-        mz.ip = config[:master_zone_ip]
-
-        if !mz.exists?
-          logger.debug("[kitchen-zone] Zone template #{mz.name} not found - creating now.")
-          mz.create
-          mz.halt
-        else
-          logger.debug("[kitchen-zone] Found zone template #{mz.name}")
-        end
-
-        if mz.running?
-          mz.halt
-        end
+        generate_keys
+        state[:ssh_key] = config[:private_key]
+        public_key = IO.read(config[:public_key]).strip
 
         # Yay! now let's create our new test zone
         tz = SolarisZone.new(logger)
@@ -77,9 +81,28 @@ module Kitchen
         tz.name = "kitchen-#{SecureRandom.hex(6)}"
         tz.password = config[:test_zone_password]
         tz.ip = config[:test_zone_ip]
+        tz.public_key = public_key
 
         case gz.solaris_version
         when "10"
+          # Now that we know our global zone is happy, let's create a master zone!
+          mz = SolarisZone.new(logger)
+          mz.global_zone = gz
+          mz.name = config[:master_zone_name]
+          mz.password = config[:master_zone_password]
+          mz.ip = config[:master_zone_ip]
+
+          if !mz.exists?
+            logger.debug("[kitchen-zone] Zone template #{mz.name} not found - creating now.")
+            mz.create
+            mz.halt
+          else
+            logger.debug("[kitchen-zone] Found zone template #{mz.name}")
+          end
+
+          if mz.running?
+            mz.halt
+          end
           tz.clone_from(mz)
         when "11"
           tz.create
@@ -89,9 +112,11 @@ module Kitchen
         state[:hostname] = tz.ip
         state[:username] = "root"
         state[:password] = tz.password
+
         tz.sever
-        mz.sever
+        mz.sever unless mz.nil?
         gz.sever
+
       end
 
       def destroy(state)

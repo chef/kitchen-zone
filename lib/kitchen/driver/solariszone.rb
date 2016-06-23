@@ -30,6 +30,7 @@ module Kitchen
       attr_accessor :global_zone
       attr_accessor :name
       attr_accessor :ip
+      attr_accessor :public_key
       attr_reader :solaris_version
 
       def initialize(logger = nil)
@@ -221,7 +222,7 @@ module Kitchen
       end
 
       def configure_network
-        return_value = zone_connection.exec("echo #{resolve_conf} > /zones/#{@name}/root/etc/resolv.conf")
+        return_value = zone_connection.exec("cp /etc/resolv.conf /zones/#{@name}/root/etc/")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("cp /zones/#{@name}/root/etc/nsswitch.dns  /zones/#{@name}/root/etc/nsswitch.conf")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
@@ -232,6 +233,21 @@ module Kitchen
       end
 
       def configure_ssh
+        return_value = zone_connection.exec("zlogin #{@name} 'mkdir .ssh'")
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+
+        return_value = zone_connection.exec("zlogin #{@name} 'chmod 0700 .ssh'")
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+
+        return_value = zone_connection.exec("zlogin #{@name} 'touch .ssh/authorized_keys'")
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+
+        return_value = zone_connection.exec("zlogin #{@name} 'chmod 0600 .ssh/authorized_keys'")
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+
+        return_value = zone_connection.exec("zlogin #{@name} 'echo \'#{@public_key}\' >> .ssh/authorized_keys'")
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+
         return_value = zone_connection.exec("perl -pi -e 's/(PermitRootLogin) no/\\1 yes/' /zones/#{@name}/root/etc/ssh/sshd_config")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's%(CONSOLE=/dev/console)%\\#\\1%' /zones/#{@name}/root/etc/default/login")
@@ -242,7 +258,7 @@ module Kitchen
           waiting_for_rolemod = true;
           waiting_too_damn_long = 0;
           while waiting_for_rolemod && waiting_too_damn_long < 10
-            return_value = zone_connection.exec("zlogin #{@name} \"usermod -K type=normal root\"")
+            return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"")
             return_value = zone_connection.exec("zlogin #{@name} \"cat /etc/user_attr.d/* | grep root | grep 'type=role'\" 2>&1 > /dev/null")
             if return_value[:exit_code] == 1
               waiting_for_rolemod = false
@@ -251,7 +267,7 @@ module Kitchen
               sleep 10
             end
           end
-          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 1
         end
       end
 
@@ -297,6 +313,7 @@ nameserver 8.8.8.8
 nameserver 8.8.4.4
 search chef.co|).chomp
       end
+
 
       def sc_profile
         Shellwords.escape(
@@ -397,6 +414,7 @@ set type=string
 set value="Created by Test Kitchen + #{Time.now}"
 end|).chomp
       end
+
 
       def zone_cfg_11
         Shellwords.escape(
