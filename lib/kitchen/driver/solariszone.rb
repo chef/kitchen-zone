@@ -239,18 +239,7 @@ module Kitchen
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         if global_zone.solaris_version == "11"
-          waiting_for_rolemod = true;
-          waiting_too_damn_long = 0;
-          while waiting_for_rolemod && waiting_too_damn_long < 10
-            return_value = zone_connection.exec("zlogin #{@name} \"usermod -K type=normal root\"")
-            return_value = zone_connection.exec("zlogin #{@name} \"cat /etc/user_attr.d/* | grep root | grep 'type=role'\" 2>&1 > /dev/null")
-            if return_value[:exit_code] == 1
-              waiting_for_rolemod = false
-            else
-              waiting_too_damn_long += 1
-              sleep 10
-            end
-          end
+          return_value = zone_connection.exec("perl -pi -e 's/^root/# root/' /zones/#{@name}/root/etc/user_attr")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
       end
