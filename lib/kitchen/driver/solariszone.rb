@@ -29,6 +29,7 @@ module Kitchen
       attr_accessor :password
       attr_accessor :global_zone
       attr_accessor :name
+      attr_accessor :brand
       attr_accessor :ip
       attr_reader :solaris_version
 
@@ -55,9 +56,10 @@ module Kitchen
         generate_hostname
         create_zonecfg
         create_zone
-        create_sc_profile if global_zone.solaris_version == "11"
+        # create_sc_profile if global_zone.solaris_version == "11"
+        create_sc_profile if brand == "solaris"
         install_zone
-        create_sysidcfg if global_zone.solaris_version == "10"
+        create_sysidcfg if brand != "solaris"
         boot_zone
         configure_network
         configure_ssh
@@ -106,7 +108,7 @@ module Kitchen
       end
 
       def network_device
-        return_value = zone_connection.exec("ifconfig -a | grep IPv4 | cut -d: -f1 | uniq | grep -v lo")
+        return_value = zone_connection.exec("ifconfig -a | grep IPv4 | cut -d: -f1 | uniq | grep -v lo | grep 0")
         if return_value[:exit_code] == 0
           return return_value[:stdout]
         else
@@ -182,10 +184,17 @@ module Kitchen
 
       def clone_zone(master_zone_name)
         # if we're using solaris 11, we don't actually clone, we just run create
-        if global_zone.solaris_version == "11"
+        if brand == "solaris"
           raise Exception, "Please use create for Solaris 11 zones, we don't support cloning on Solaris 11"
-        else
+        elsif brand == "solaris10"
           logger.debug("[SolarisZone] Cloning #{@name} from #{master_zone_name}")
+          zone_connection.exec("zoneadm -z #{master_zone_name} halt 2>&1 > /dev/null")
+          zone_connection.exec("echo #{sysidcfg} > /tmp/#{@name}_sysidcfg")
+          return_value = zone_connection.exec("zoneadm -z #{@name} clone -c /tmp/#{@name}_sysidcfg #{master_zone_name} 2>&1")
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        elsif brand == "native"
+          logger.debug("[SolarisZone] Cloning #{@name} from #{master_zone_name}")
+          zone_connection.exec("zoneadm -z #{master_zone_name} halt 2>&1 > /dev/null")
           return_value = zone_connection.exec("zoneadm -z #{@name} clone #{master_zone_name} 2>&1 | grep -v \"grep: can't open /a/etc/dumpadm.conf\"")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
@@ -208,12 +217,15 @@ module Kitchen
       end
 
       def create_zonecfg
-        case global_zone.solaris_version
-        when "10"
+        case brand
+        when "native"
           return_value = zone_connection.exec("echo #{zone_cfg_10} > /tmp/#{@name}.cfg")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        when "11"
+        when "solaris"
           return_value = zone_connection.exec("echo #{zone_cfg_11} > /tmp/#{@name}.cfg")
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        when "solaris10"
+          return_value = zone_connection.exec("echo #{zone_cfg_branded} > /tmp/#{@name}.cfg")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         else
           raise Exception, "Unknown version found: #{global_zone.solaris_version}"
@@ -257,24 +269,29 @@ module Kitchen
       end
 
       def install_zone
-        case global_zone.solaris_version
-        when "10"
+        case brand
+        when "native"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
           return_value = zone_connection.exec("zoneadm -z #{@name} install")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        when "11"
+        when "solaris"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
           return_value = zone_connection.exec("zoneadm -z #{@name} install -c /tmp/#{@name}_sc_profile.xml")
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        when "solaris10"
+          logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
+          zone_connection.exec("echo #{sysidcfg} > /tmp/#{@name}_sysidcfg")
+          return_value = zone_connection.exec("zoneadm -z #{@name} install -u -a /zones/s10-master.cpio.gz -c /tmp/#{@name}_sysidcfg")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
       end
 
       def password_hash
         salt = rand(36**6).to_s(36)
-        case global_zone.solaris_version
-        when "10"
+        case brand
+        when ("solaris10" || "native")
           password.crypt(salt)
-        when "11"
+        when "solaris"
           ::UnixCrypt::SHA256.build(password, salt)
         end
       end
@@ -385,6 +402,28 @@ set name=comment
 set type=string
 set value="Created by Test Kitchen + #{Time.now}"
 end|).chomp
+      end
+
+      def zone_cfg_branded
+        Shellwords.escape(
+        %Q|create -b
+      set zonepath=/zones/#{@name}
+      set brand=solaris10
+      set autoboot=true
+      set ip-type=shared
+      set bootargs="-m verbose"
+      add net
+      set address=#{@ip}
+      set physical=#{@global_zone.network_device}
+      end
+      add capped-cpu
+      set ncpus=4
+      end
+      add attr
+      set name=comment
+      set type=string
+      set value="Created by Test Kitchen + #{Time.now}"
+      end|).chomp
       end
 
       def zone_cfg_11

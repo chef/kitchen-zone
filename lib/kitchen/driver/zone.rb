@@ -58,6 +58,7 @@ module Kitchen
         mz.name = config[:master_zone_name]
         mz.password = config[:master_zone_password]
         mz.ip = config[:master_zone_ip]
+        mz.brand = config[:brand]
 
         if !mz.exists?
           logger.debug("[kitchen-zone] Zone template #{mz.name} not found - creating now.")
@@ -77,16 +78,17 @@ module Kitchen
         tz.name = "kitchen-#{SecureRandom.hex(6)}"
         tz.password = config[:test_zone_password]
         tz.ip = config[:test_zone_ip]
+        tz.brand = config[:brand]
 
-        case gz.solaris_version
-        when "10"
-          tz.clone_from(mz)
-        when "11"
+        if tz.brand == "solaris"
           tz.create
+        else
+          tz.clone_from(mz)
         end
 
         state[:zone_id] = tz.name
         state[:hostname] = tz.ip
+        state[:brand] = tz.brand
         state[:username] = "root"
         state[:password] = tz.password
         tz.sever
