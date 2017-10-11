@@ -184,9 +184,7 @@ module Kitchen
 
       def clone_zone(master_zone_name)
         # if we're using solaris 11, we don't actually clone, we just run create
-        if brand == "solaris"
-          raise Exception, "Please use create for Solaris 11 zones, we don't support cloning on Solaris 11"
-        elsif brand == "solaris10"
+        if brand == "solaris10" || brand == "solaris"
           logger.debug("[SolarisZone] Cloning #{@name} from #{master_zone_name}")
           zone_connection.exec("zoneadm -z #{master_zone_name} halt 2>&1 > /dev/null")
           zone_connection.exec("echo #{sysidcfg} > /tmp/#{@name}_sysidcfg")
@@ -238,8 +236,6 @@ module Kitchen
         return_value = zone_connection.exec("cp /zones/#{@name}/root/etc/nsswitch.dns  /zones/#{@name}/root/etc/nsswitch.conf")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's/^#(.*enable-cache hosts.*)/\\1/'  /zones/#{@name}/root/etc/nscd.conf")
-        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        return_value = zone_connection.exec("echo #{@ip} #{@hostname} >> /etc/hosts")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
       end
 
