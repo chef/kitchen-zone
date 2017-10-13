@@ -64,7 +64,7 @@ platforms:
       global_zone_hostname: 'sol-zone-host01.mysite.co'
       global_zone_user: 'root'
       global_zone_password: 'supersecret'
-      master_zone_name: kitchen-master
+      master_zone_name: s10-master
       master_zone_ip: '192.168.1.100'
       test_zone_ip: '192.168.1.110'
   - name: solaris-11-i86pc
@@ -76,7 +76,7 @@ platforms:
       global_zone_hostname: 'sol-zone-host02.mysite.co'
       global_zone_user: 'root'
       global_zone_password: 'supersecret'
-      master_zone_name: kitchen-master
+      master_zone_name: master
       master_zone_ip: '192.168.2.100'
       test_zone_ip: '192.168.2.110'
 suites:
