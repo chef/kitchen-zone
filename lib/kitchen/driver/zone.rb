@@ -79,18 +79,14 @@ module Kitchen
         tz.password = config[:test_zone_password]
         tz.ip = config[:test_zone_ip]
         tz.brand = config[:brand]
-
-        if tz.brand == "solaris"
-          tz.create
-        else
-          tz.clone_from(mz)
-        end
+        tz.create(mz)
 
         state[:zone_id] = tz.name
         state[:hostname] = tz.ip
         state[:brand] = tz.brand
         state[:username] = "root"
         state[:password] = tz.password
+        state[:master_zone_name] = mz.name
         tz.sever
         mz.sever
         gz.sever
