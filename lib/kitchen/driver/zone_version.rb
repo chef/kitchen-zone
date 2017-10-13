@@ -21,6 +21,6 @@ module Kitchen
   module Driver
 
     # Version string for Zone Kitchen driver
-    ZONE_VERSION = "0.1.0.dev"
+    ZONE_VERSION = "0.1.1.dev"
   end
 end
