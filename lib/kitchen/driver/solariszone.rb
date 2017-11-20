@@ -213,12 +213,10 @@ module Kitchen
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("perl -pi -e 's%(CONSOLE=/dev/console)%\\#\\1%' /zones/#{@name}/root/etc/default/login")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
+        return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"") if brand == "solaris"
+        raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        if global_zone.solaris_version == "11"
-          return_value = zone_connection.exec("perl -pi -e 's/^root/# root/' /zones/#{@name}/root/etc/user_attr")
-          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        end
       end
 
       def generate_hostname
@@ -374,23 +372,24 @@ end|).chomp
       def zone_cfg_branded
         Shellwords.escape(
         %Q|create -b
-      set zonepath=/zones/#{@name}
-      set brand=solaris10
-      set autoboot=true
-      set ip-type=shared
-      set bootargs="-m verbose"
-      add net
-      set address=#{@ip}
-      set physical=#{@global_zone.network_device}
-      end
-      add capped-cpu
-      set ncpus=4
-      end
-      add attr
-      set name=comment
-      set type=string
-      set value="Created by Test Kitchen + #{Time.now}"
-      end|).chomp
+set zonepath=/zones/#{@name}
+set brand=solaris10
+set autoboot=true
+set ip-type=shared
+set bootargs="-m verbose"
+add net
+set address=#{@ip}
+set physical=#{@global_zone.network_device}
+set defrouter=172.31.0.1
+end
+add capped-cpu
+set ncpus=4
+end
+add attr
+set name=comment
+set type=string
+set value="Created by Test Kitchen + #{Time.now}"
+end|).chomp
       end
 
       def zone_cfg_11
@@ -403,6 +402,7 @@ set bootargs="-m verbose"
 add net
 set address=#{@ip}
 set physical=#{@global_zone.network_device}
+set defrouter=172.31.0.1
 end
 add attr
 set name=comment
