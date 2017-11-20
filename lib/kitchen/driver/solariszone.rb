@@ -215,7 +215,9 @@ module Kitchen
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
-        if global_zone.solaris_version == "11"
+        if brand == "solaris"
+          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"") if brand == "solaris"
+          raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
           return_value = zone_connection.exec("perl -pi -e 's/^root/# root/' /zones/#{@name}/root/etc/user_attr")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         end
