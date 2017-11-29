@@ -216,7 +216,7 @@ module Kitchen
         return_value = zone_connection.exec("zlogin #{@name} \"svcadm -v restart ssh\"")
         raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         if brand == "solaris"
-          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"") if brand == "solaris"
+          return_value = zone_connection.exec("zlogin #{@name} \"rolemod -K type=normal root\"")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
           return_value = zone_connection.exec("perl -pi -e 's/^root/# root/' /zones/#{@name}/root/etc/user_attr")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
@@ -244,8 +244,7 @@ module Kitchen
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         when "solaris"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
-          return_value = zone_connection.exec("zoneadm -z #{@name} install -c /tmp/#{@name}_sc_profile.xml") if arch[:stdout] == "sun4v"
-          return_value = zone_connection.exec("zoneadm -z #{@name} clone -c /tmp/#{@name}_sc_profile.xml #{master_zone_name}") if arch[:stdout] == "i86pc"
+          return_value = zone_connection.exec("zoneadm -z #{@name} clone -c /tmp/#{@name}_sc_profile.xml #{master_zone_name}")
           raise Exception, return_value[:stdout] if return_value[:exit_code] != 0
         when "solaris10"
           logger.debug("[SolarisZone] Installing zone #{@name} - this may take a while")
